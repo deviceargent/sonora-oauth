@@ -2,6 +2,7 @@ mod accounts;
 mod auth;
 mod client;
 mod genres;
+mod oauth;
 mod playback;
 mod subscriptions;
 mod trim;
