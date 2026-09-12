@@ -50,3 +50,24 @@ jobs:
 
     - name: Build
       run: cargo build --release --target ${{ matrix.target }}
+
+    - name: Upload Windows artifact
+      if: runner.os == 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: sonora-windows-x86_64
+        path: target/${{ matrix.target }}/release/sonora.exe
+
+    - name: Upload Linux artifact
+      if: runner.os == 'Linux'
+      uses: actions/upload-artifact@v4
+      with:
+        name: sonora-linux-x86_64
+        path: target/${{ matrix.target }}/release/sonora
+
+    - name: Upload macOS artifact
+      if: runner.os == 'macOS'
+      uses: actions/upload-artifact@v4
+      with:
+        name: sonora-macos-aarch64
+        path: target/${{ matrix.target }}/release/sonora
