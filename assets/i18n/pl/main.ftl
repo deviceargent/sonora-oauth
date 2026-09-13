@@ -275,6 +275,7 @@ login-problem-refused = Spotify odrzucił logowanie. Odczekaj chwilę i spróbuj
 login-problem-premium = Sonora odtwarza muzykę przez Spotify Premium, a to konto go nie ma. Zaloguj się na konto z Premium, aby kontynuować.
 login-sign-in = Zaloguj się przez { $provider }
 login-connect-cookies = Wklej pliki cookie ręcznie
+login-connect-google = Zaloguj się przez Google
 login-use = Otwórz { $provider }
 login-guest-title = Tryb gościa
 login-guest-use = Otwórz tryb gościa

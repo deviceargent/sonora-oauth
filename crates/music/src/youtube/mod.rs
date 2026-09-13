@@ -2,7 +2,6 @@ mod accounts;
 mod auth;
 mod client;
 mod genres;
-mod oauth;
 mod playback;
 mod subscriptions;
 mod trim;
@@ -15,8 +14,6 @@ use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use ytmusic::YtMusic;
-
-use crate::youtube::oauth::OAuthConfig;
 
 use crate::youtube::playback::Factory;
 
@@ -38,6 +35,9 @@ enum Saved {
         page_id: Option<String>,
     },
     Guest,
+    OAuth {
+        refresh_token: String,
+    },
 }
 
 pub struct YouTubeProvider {
@@ -86,6 +86,21 @@ impl YouTubeProvider {
                 .cache_resolutions(self.resolved.clone())
                 .cache_player(self.player.clone()),
         )
+    }
+
+    fn oauth_client(&self, refresh_token: &str) -> Arc<YtMusic> {
+        Arc::new(
+            YtMusic::with_oauth(refresh_token)
+                .cache_resolutions(self.resolved.clone())
+                .cache_player(self.player.clone()),
+        )
+    }
+
+    fn store_oauth(&self, refresh_token: &str) -> Result<()> {
+        self.save(&Saved::OAuth {
+            refresh_token: refresh_token.to_owned(),
+        })
+        .context("cannot store the youtube oauth grant")
     }
 
     fn guest_client(&self) -> Arc<YtMusic> {
@@ -180,6 +195,41 @@ impl YouTubeProvider {
             log::warn!("youtube: cannot remember the guest session: {error:#}");
         }
     }
+
+    /// Sign-in through Google's device flow: the UI shows a code the user types on any
+    /// signed-in device, and polling hands back a refresh token that survives restarts.
+    async fn sign_in_oauth(&self, prompt: &PromptSink) -> Result<ProviderSession> {
+        let instructions = ytmusic::oauth::begin()
+            .await
+            .context("cannot start the google login")?;
+        prompt(SignInPrompt::Code {
+            code: instructions.user_code.clone(),
+            url: instructions.url.clone(),
+        });
+        let refresh_token = ytmusic::oauth::wait(&instructions)
+            .await
+            .context("the google login did not complete")?;
+        self.store_oauth(&refresh_token)?;
+        let api = self.oauth_client(&refresh_token);
+        match api.profile().await {
+            Ok(profile) => {
+                log::debug!("youtube: oauth sign-in succeeded");
+                Ok(self.authenticated_session(api, wire::profile(profile)))
+            }
+            Err(error) => {
+                log::warn!(
+                    "youtube: cannot read the account profile after the oauth sign-in: {error:#}"
+                );
+                Ok(self.authenticated_session(
+                    api,
+                    UserProfile {
+                        id: "youtube-oauth".to_string(),
+                        display_name: "YouTube Music".to_string(),
+                    },
+                ))
+            }
+        }
+    }
 }
 
 /// Folds the `cookies.txt`, `authuser.txt` and `guest` files releases before 0.31 kept
@@ -252,7 +302,7 @@ impl MusicProvider for YouTubeProvider {
     }
 
     fn sign_in_options(&self) -> Vec<SignIn> {
-        vec![SignIn::Anonymous, SignIn::Secret]
+        vec![SignIn::Anonymous, SignIn::OAuth, SignIn::Secret]
     }
 
     fn stored(&self) -> bool {
@@ -268,6 +318,21 @@ impl MusicProvider for YouTubeProvider {
             }) => Ok(self
                 .restore_cookies(&cookies, authuser, page_id.as_deref())
                 .await),
+            Some(Saved::OAuth { refresh_token }) => {
+                let api = self.oauth_client(&refresh_token);
+                Ok(match api.profile().await {
+                    Ok(profile) => {
+                        log::debug!("youtube: restored the oauth session");
+                        Some(self.authenticated_session(api, wire::profile(profile)))
+                    }
+                    Err(error) => {
+                        log::warn!(
+                            "youtube: the stored oauth grant is no longer usable: {error:#}"
+                        );
+                        None
+                    }
+                })
+            }
             Some(Saved::Guest) => {
                 log::debug!("youtube: restoring guest session");
                 Ok(Some(self.guest_session(self.guest_client())))
@@ -292,28 +357,7 @@ impl MusicProvider for YouTubeProvider {
                 let cookies = input.recv().await.context("sign-in was cancelled")?;
                 self.connect(&cookies, &prompt, &mut input).await
             }
-            SignIn::OAuth => {
-                let config = OAuthConfig::default();
-                let saved = tokio::task::spawn_blocking(move || oauth::login(&config)).await??;
-                let refresh_token = saved.refresh_token;
-                let saved = oauth::save(&config, &oauth::Saved {
-                    refresh_token: refresh_token.clone(),
-                })?;
-                let api = ytmusic::YtMusic::with_oauth(refresh_token);
-                let client = YouTubeClient::new(api);
-                let profile = UserProfile {
-                    id: "youtube-oauth".to_string(),
-                    display_name: "YouTube Music (OAuth)".to_string(),
-                };
-                Ok(ProviderSession {
-                    profile,
-                    api: Arc::new(client),
-                    playback: Arc::new(Factory::new(api)),
-                    shape: Shape::Saved,
-                    authenticated: true,
-                    playcounts: false,
-                })
-            }
+            SignIn::OAuth => self.sign_in_oauth(&prompt).await,
             SignIn::Path(_) => Err(anyhow::anyhow!(
                 "youtube does not sign in with a folder path"
             )),

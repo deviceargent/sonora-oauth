@@ -193,6 +193,7 @@ login-problem-refused = Spotify відхилив вхід. Зачекайте т
 login-problem-premium = Sonora відтворює музику через Spotify Premium, а цей акаунт його не має. Увійдіть в акаунт з Premium, щоб продовжити.
 login-sign-in = Увійти через { $provider }
 login-connect-cookies = Вставити cookie вручну
+login-connect-google = Увійти через Google
 login-use = Відкрити { $provider }
 login-guest-title = Гостьовий режим
 login-guest-use = Відкрити гостьовий режим

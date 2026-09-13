@@ -70,6 +70,7 @@ fn offered(method: &SignIn, stored: bool, guest: bool) -> bool {
     match method {
         SignIn::Default | SignIn::Anonymous => !stored,
         SignIn::Secret => !stored || guest,
+        SignIn::OAuth => !stored,
         SignIn::Credentials { .. } => !stored,
         SignIn::Path(_) => false,
     }
@@ -1805,6 +1806,7 @@ impl SettingsView {
                 format!("connect-{slug}-cookies"),
                 t!("login-connect-cookies"),
             ),
+            SignIn::OAuth => (format!("connect-{slug}-google"), t!("login-connect-google")),
             SignIn::Path(_) => (
                 format!("connect-{slug}-path"),
                 t!("login-sign-in", provider = provider),

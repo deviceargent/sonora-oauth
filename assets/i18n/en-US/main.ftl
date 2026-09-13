@@ -264,6 +264,7 @@ login-problem-refused = Spotify turned down the sign-in. Wait a moment and try a
 login-problem-premium = Sonora streams through Spotify Premium, and this account does not have it. Sign in with a Premium account to continue.
 login-sign-in = Sign in with { $provider }
 login-connect-cookies = Paste cookies manually
+login-connect-google = Sign in with Google
 login-use = Use { $provider }
 login-guest-title = Guest mode
 login-guest-use = Use Guest mode

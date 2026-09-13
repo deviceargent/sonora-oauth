@@ -153,6 +153,7 @@ impl LoginView {
                 format!("sign-in-{slug}-cookies"),
                 t!("login-connect-cookies"),
             ),
+            SignIn::OAuth => (format!("sign-in-{slug}-google"), t!("login-connect-google")),
             SignIn::Path(_) => (
                 format!("sign-in-{slug}-path"),
                 t!("login-sign-in", provider = provider),
