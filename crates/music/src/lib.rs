@@ -310,6 +310,7 @@ pub enum SignIn {
         username: String,
         password: String,
     },
+    OAuth,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -16,6 +16,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use ytmusic::YtMusic;
 
+use crate::youtube::oauth::OAuthConfig;
+
 use crate::youtube::playback::Factory;
 
 use crate::{
@@ -289,6 +291,28 @@ impl MusicProvider for YouTubeProvider {
                 prompt(SignInPrompt::Secret);
                 let cookies = input.recv().await.context("sign-in was cancelled")?;
                 self.connect(&cookies, &prompt, &mut input).await
+            }
+            SignIn::OAuth => {
+                let config = OAuthConfig::default();
+                let saved = tokio::task::spawn_blocking(move || oauth::login(&config)).await??;
+                let refresh_token = saved.refresh_token;
+                let saved = oauth::save(&config, &oauth::Saved {
+                    refresh_token: refresh_token.clone(),
+                })?;
+                let api = ytmusic::YtMusic::with_oauth(refresh_token);
+                let client = YouTubeClient::new(api);
+                let profile = UserProfile {
+                    id: "youtube-oauth".to_string(),
+                    display_name: "YouTube Music (OAuth)".to_string(),
+                };
+                Ok(ProviderSession {
+                    profile,
+                    api: Arc::new(client),
+                    playback: Arc::new(Factory::new(api)),
+                    shape: Shape::Saved,
+                    authenticated: true,
+                    playcounts: false,
+                })
             }
             SignIn::Path(_) => Err(anyhow::anyhow!(
                 "youtube does not sign in with a folder path"
